@@ -1,0 +1,1078 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Detector de Ira Justificada</title>
+  <style>
+    :root {
+      --bg: #0b1120;
+      --card: #101a33;
+      --accent: #2563eb;
+      --accent-light: #3b82f6;
+      --correct: #16a34a;
+      --incorrect: #dc2626;
+      --text: #f8fafc;
+      --muted: #cbd5f5;
+      --shadow: 0 20px 40px rgba(11, 17, 32, 0.35);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+      background: radial-gradient(circle at top, rgba(37, 99, 235, 0.35), transparent 55%), var(--bg);
+      color: var(--text);
+      display: flex;
+      justify-content: center;
+      align-items: stretch;
+      padding: clamp(12px, 2vw, 24px);
+    }
+
+    .app {
+      width: min(1100px, 100%);
+      display: grid;
+      grid-template-columns: 320px 1fr;
+      gap: clamp(16px, 3vw, 32px);
+    }
+
+    aside {
+      background: rgba(16, 26, 51, 0.85);
+      border: 1px solid rgba(148, 163, 184, 0.15);
+      border-radius: 24px;
+      padding: clamp(18px, 3vw, 28px);
+      position: sticky;
+      top: clamp(12px, 2vw, 24px);
+      align-self: start;
+      box-shadow: var(--shadow);
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      backdrop-filter: blur(8px);
+    }
+
+    aside h2 {
+      margin: 0;
+      font-size: 1.3rem;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    .status-grid {
+      display: grid;
+      gap: 12px;
+    }
+
+    .status-item {
+      background: rgba(15, 23, 42, 0.55);
+      border-radius: 16px;
+      padding: 12px 16px;
+      border: 1px solid rgba(37, 99, 235, 0.25);
+    }
+
+    .status-item h3 {
+      margin: 0 0 6px;
+      font-size: 0.95rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.02em;
+    }
+
+    .status-item p {
+      margin: 0;
+      font-size: 1.05rem;
+      font-weight: 600;
+    }
+
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 12px;
+      border-radius: 999px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      margin-right: 8px;
+    }
+
+    .pill-pending {
+      background: rgba(59, 130, 246, 0.12);
+      color: var(--muted);
+    }
+
+    .pill-progress {
+      background: rgba(59, 130, 246, 0.22);
+      color: var(--text);
+    }
+
+    .pill-done {
+      background: rgba(22, 163, 74, 0.2);
+      color: var(--correct);
+    }
+
+    main {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      position: relative;
+    }
+
+    .card {
+      background: rgba(15, 23, 42, 0.75);
+      border-radius: 28px;
+      padding: clamp(22px, 4vw, 40px);
+      border: 1px solid rgba(148, 163, 184, 0.18);
+      box-shadow: var(--shadow);
+      position: relative;
+      overflow: hidden;
+      min-height: 460px;
+    }
+
+    .fade-in {
+      animation: fadeIn 320ms ease forwards;
+    }
+
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(14px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .card h1 {
+      font-size: clamp(1.6rem, 2.4vw, 2.2rem);
+      margin-top: 0;
+      margin-bottom: 12px;
+    }
+
+    .card p {
+      font-size: 1.05rem;
+      line-height: 1.6;
+      color: var(--muted);
+    }
+
+    .instructions-list {
+      margin: 18px 0 28px;
+      padding-left: 20px;
+    }
+
+    .primary-btn,
+    .option-btn,
+    .ghost-btn {
+      cursor: pointer;
+      font-size: 1.05rem;
+      font-weight: 600;
+      border-radius: 16px;
+      border: none;
+      transition: transform 160ms ease, box-shadow 160ms ease, background 160ms ease;
+    }
+
+    .primary-btn {
+      background: linear-gradient(135deg, var(--accent) 0%, var(--accent-light) 100%);
+      color: white;
+      padding: 16px 28px;
+      box-shadow: 0 16px 32px rgba(37, 99, 235, 0.4);
+    }
+
+    .primary-btn:hover,
+    .option-btn:hover,
+    .ghost-btn:hover {
+      transform: translateY(-2px);
+    }
+
+    .primary-btn:active,
+    .option-btn:active,
+    .ghost-btn:active {
+      transform: translateY(1px);
+    }
+
+    .option-grid {
+      display: grid;
+      gap: 14px;
+      margin-top: 24px;
+    }
+
+    .option-btn {
+      padding: 18px 20px;
+      text-align: left;
+      background: rgba(15, 23, 42, 0.8);
+      color: var(--text);
+      border: 1px solid rgba(37, 99, 235, 0.28);
+    }
+
+    .option-btn.correct {
+      background: rgba(22, 163, 74, 0.18);
+      border-color: rgba(22, 163, 74, 0.45);
+    }
+
+    .option-btn.incorrect {
+      background: rgba(220, 38, 38, 0.18);
+      border-color: rgba(220, 38, 38, 0.45);
+    }
+
+    .feedback {
+      margin-top: 18px;
+      font-size: 1.02rem;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 14px 18px;
+      border-radius: 14px;
+      border: 1px solid transparent;
+    }
+
+    .feedback.correct {
+      color: var(--correct);
+      border-color: rgba(22, 163, 74, 0.4);
+      background: rgba(22, 163, 74, 0.1);
+    }
+
+    .feedback.incorrect {
+      color: var(--incorrect);
+      border-color: rgba(220, 38, 38, 0.4);
+      background: rgba(220, 38, 38, 0.1);
+    }
+
+    .case-description {
+      background: rgba(37, 99, 235, 0.12);
+      border-left: 4px solid var(--accent);
+      padding: 16px 18px;
+      border-radius: 16px;
+      margin-bottom: 24px;
+    }
+
+    .case-description strong {
+      color: var(--text);
+      font-size: 1.05rem;
+    }
+
+    .pill-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+
+    .ghost-btn {
+      background: transparent;
+      color: var(--muted);
+      border: 1px solid rgba(148, 163, 184, 0.25);
+      padding: 14px 24px;
+    }
+
+    .results-grid {
+      display: grid;
+      gap: 18px;
+      margin-top: 24px;
+    }
+
+    .ranking {
+      background: rgba(15, 23, 42, 0.7);
+      border: 1px solid rgba(37, 99, 235, 0.25);
+      border-radius: 16px;
+      padding: 16px 20px;
+    }
+
+    .ranking-item {
+      display: flex;
+      justify-content: space-between;
+      padding: 10px 0;
+      border-bottom: 1px solid rgba(148, 163, 184, 0.15);
+      font-size: 1rem;
+    }
+
+    .ranking-item:last-child {
+      border-bottom: none;
+    }
+
+    .timer-warning {
+      color: var(--incorrect);
+      font-weight: 700;
+    }
+
+    .timer-critical {
+      animation: pulse 1s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% {
+        color: var(--incorrect);
+      }
+      50% {
+        color: #f87171;
+      }
+    }
+
+    .time-up-overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(11, 17, 32, 0.92);
+      display: none;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      padding: 32px;
+      gap: 16px;
+    }
+
+    .time-up-overlay.active {
+      display: flex;
+    }
+
+    .time-up-overlay h2 {
+      margin: 0;
+      font-size: 2rem;
+    }
+
+    footer {
+      font-size: 0.85rem;
+      color: rgba(148, 163, 184, 0.7);
+      text-align: center;
+    }
+
+    @media (max-width: 960px) {
+      body {
+        align-items: flex-start;
+      }
+
+      .app {
+        grid-template-columns: 1fr;
+      }
+
+      aside {
+        position: static;
+        order: 2;
+      }
+
+      main {
+        order: 1;
+      }
+    }
+
+    @media (max-width: 640px) {
+      .card {
+        padding: 22px;
+        border-radius: 22px;
+      }
+
+      .option-btn {
+        font-size: 1rem;
+        padding: 16px;
+      }
+
+      .primary-btn,
+      .ghost-btn {
+        width: 100%;
+        justify-content: center;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside>
+      <h2>Progreso General</h2>
+      <div class="status-grid">
+        <div class="status-item">
+          <h3>Casos</h3>
+          <div class="pill-row" id="case-status"></div>
+        </div>
+        <div class="status-item">
+          <h3>Detalle del progreso</h3>
+          <p id="current-case">CASO ACTUAL: ⏳</p>
+          <p id="current-tool">HERRAMIENTA ACTUAL: -</p>
+          <p id="attempts">INTENTOS EN ESTE CASO: -</p>
+        </div>
+        <div class="status-item">
+          <h3>Tiempo restante</h3>
+          <p id="timer" class="timer-display">20:00</p>
+        </div>
+      </div>
+      <footer>Detector de Ira Justificada · Framework POSVERDAD</footer>
+    </aside>
+    <main>
+      <section class="card fade-in" id="view"></section>
+      <div class="time-up-overlay" id="time-up">
+        <h2>⏰ Tiempo agotado</h2>
+        <p>El límite de 20 minutos ha finalizado. Reinicia para volver a intentarlo con calma.</p>
+        <button class="primary-btn" id="restart-btn">Reiniciar todo</button>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    const STORAGE_KEY = "ira-justificada-state-v1";
+    const TOTAL_TIME = 20 * 60 * 1000; // 20 minutos
+
+    const CASES = [
+      {
+        title: "CASO 1: \"El Comediante\"",
+        description: "Un comediante hizo un chiste sobre un grupo específico en su show. El video se viralizó, fue cancelado de múltiples plataformas, perdió contratos y recibió amenazas de muerte. Después se reveló que el video estaba editado y sacado de contexto de una rutina de 20 minutos sobre la importancia de la tolerancia.",
+        resultLabel: "✅ CASO 1 (Comediante): LINCHAMIENTO DIGITAL",
+        tools: [
+          {
+            name: "Herramienta 1: Especificidad",
+            question: "¿Puedes señalar EXACTAMENTE qué hizo esta persona?",
+            options: [
+              { text: "A) \"Hizo comentarios ofensivos en general\"", correct: false, feedback: "❌ Incorrecto. Estás generalizando. REINICIA EL CASO 1." },
+              { text: "B) \"Hizo un chiste específico sobre [grupo] en su show del [fecha]\"", correct: true, feedback: "✅ Correcto. Continúa a Herramienta 2." },
+              { text: "C) \"Es una persona problemática\"", correct: false, feedback: "❌ Incorrecto. Juzgas a la persona, no la acción. REINICIA EL CASO 1." }
+            ]
+          },
+          {
+            name: "Herramienta 2: Evidencia Verificable",
+            question: "¿Qué evidencia verificable tienes?",
+            options: [
+              { text: "A) \"Un video viral de 30 segundos\"", correct: false, feedback: "❌ Incorrecto. Video corto puede estar editado. REINICIA EL CASO 1." },
+              { text: "B) \"Video completo del show + testimonios de asistentes\"", correct: true, feedback: "✅ Correcto. Evidencia completa. Continúa a Herramienta 3." },
+              { text: "C) \"Comentarios en redes sociales\"", correct: false, feedback: "❌ Incorrecto. No es evidencia del evento original. REINICIA EL CASO 1." }
+            ]
+          },
+          {
+            name: "Herramienta 3: Fuentes Independientes",
+            question: "¿Las fuentes son independientes y confiables?",
+            options: [
+              { text: "A) \"Solo el video viral\"", correct: false, feedback: "❌ Incorrecto. Una sola fuente, posiblemente editada. REINICIA EL CASO 1." },
+              { text: "B) \"Video + reportes de múltiples asistentes que no se conocen\"", correct: true, feedback: "✅ Correcto. Fuentes independientes. Continúa a Herramienta 4." },
+              { text: "C) \"Video + artículos que citan el mismo video\"", correct: false, feedback: "❌ Incorrecto. Todas dependen del mismo video. REINICIA EL CASO 1." }
+            ]
+          },
+          {
+            name: "Herramienta 4: Cronología Lógica",
+            question: "¿La cronología de eventos tiene sentido?",
+            options: [
+              { text: "A) \"Show → Video editado días después → Viralización → Cancelación\"", correct: true, feedback: "✅ Correcto. Sugiere manipulación del contenido. Continúa a Herramienta 5." },
+              { text: "B) \"Video aparece → Cancelación inmediata\"", correct: false, feedback: "❌ Incorrecto. Muy rápido para verificación. REINICIA EL CASO 1." },
+              { text: "C) \"No hay información clara de tiempos\"", correct: false, feedback: "❌ Incorrecto. Sin cronología no se puede analizar. REINICIA EL CASO 1." }
+            ]
+          },
+          {
+            name: "Herramienta 5: Acción vs. Ser",
+            question: "¿Estás juzgando una acción específica o a toda la persona?",
+            options: [
+              { text: "A) \"Hizo un chiste problemático en este contexto específico\"", correct: true, feedback: "✅ Correcto. Juzgas la acción, no la persona. Continúa a Herramienta 6." },
+              { text: "B) \"Es una persona tóxica y peligrosa\"", correct: false, feedback: "❌ Incorrecto. Juzgas a toda la persona. REINICIA EL CASO 1." },
+              { text: "C) \"Representa todo lo malo de la comedia\"", correct: false, feedback: "❌ Incorrecto. Generalizas más allá de la acción. REINICIA EL CASO 1." }
+            ]
+          },
+          {
+            name: "Herramienta 6: Proporcionalidad",
+            question: "¿La reacción es proporcional al daño causado?",
+            options: [
+              { text: "A) \"Cancelación total, pérdida de carrera, amenazas de muerte\"", correct: false, feedback: "❌ Incorrecto. Desproporcionado para video editado. REINICIA EL CASO 1." },
+              { text: "B) \"Crítica pública y discusión sobre el contexto\"", correct: true, feedback: "✅ Correcto. Proporcional y constructivo. Continúa a Herramienta 7." },
+              { text: "C) \"Ignorar completamente\"", correct: false, feedback: "❌ Incorrecto. Podría ser insuficiente. REINICIA EL CASO 1." }
+            ]
+          },
+          {
+            name: "Herramienta 7: Test de Improbabilidad",
+            question: "Para que esta cancelación esté justificada, ¿cuántas cosas improbables deben ser ciertas?",
+            options: [
+              { text: "A) \"1-2 cosas (historia simple)\"", correct: false, feedback: "❌ Incorrecto. Requiere múltiples coincidencias improbables. REINICIA EL CASO 1." },
+              { text: "B) \"3+ cosas (múltiples coincidencias)\"", correct: true, feedback: "✅ Correcto. Demasiadas improbabilidades. CASO 1 COMPLETADO → AVANZA A CASO 2." },
+              { text: "C) \"No requiere eventos improbables\"", correct: false, feedback: "❌ Incorrecto. Sí requiere múltiples coincidencias. REINICIA EL CASO 1." }
+            ]
+          }
+        ]
+      },
+      {
+        title: "CASO 2: \"El Ejecutivo\"",
+        description: "Un ejecutivo de una empresa fue grabado en una reunión privada haciendo comentarios discriminatorios sobre empleados de cierta etnia. El video fue filtrado por un empleado. La empresa lo despidió inmediatamente y él perdió su reputación profesional permanentemente.",
+        resultLabel: "✅ CASO 2 (Ejecutivo): CANCELACIÓN JUSTIFICADA",
+        tools: [
+          {
+            name: "Herramienta 1: Especificidad",
+            question: "¿Puedes señalar EXACTAMENTE qué hizo esta persona?",
+            options: [
+              { text: "A) \"Hizo comentarios discriminatorios en reunión privada el [fecha]\"", correct: true, feedback: "✅ Correcto. Continúa a Herramienta 2." },
+              { text: "B) \"Es racista\"", correct: false, feedback: "❌ Incorrecto. Etiquetas a la persona, no la acción. REINICIA EL CASO 2." },
+              { text: "C) \"Siempre dice cosas problemáticas\"", correct: false, feedback: "❌ Incorrecto. Generalizas sin especificidad. REINICIA EL CASO 2." }
+            ]
+          },
+          {
+            name: "Herramienta 2: Evidencia Verificable",
+            question: "¿Qué evidencia verificable tienes?",
+            options: [
+              { text: "A) \"Video completo de la reunión filtrado por empleado presente\"", correct: true, feedback: "✅ Correcto. Evidencia directa. Continúa a Herramienta 3." },
+              { text: "B) \"Rumores de oficina\"", correct: false, feedback: "❌ Incorrecto. Rumores no son evidencia verificable. REINICIA EL CASO 2." },
+              { text: "C) \"Artículo de prensa sin fuentes\"", correct: false, feedback: "❌ Incorrecto. Sin fuentes no es evidencia sólida. REINICIA EL CASO 2." }
+            ]
+          },
+          {
+            name: "Herramienta 3: Fuentes Independientes",
+            question: "¿Las fuentes son independientes y confiables?",
+            options: [
+              { text: "A) \"Empleado que filtró + testigos presentes en la reunión\"", correct: true, feedback: "✅ Correcto. Múltiples fuentes independientes. Continúa a Herramienta 4." },
+              { text: "B) \"Solo el empleado que filtró\"", correct: false, feedback: "❌ Incorrecto. Una sola fuente. REINICIA EL CASO 2." },
+              { text: "C) \"Medios que reportan basándose en el mismo filtrado\"", correct: false, feedback: "❌ Incorrecto. Todas dependen de la misma fuente. REINICIA EL CASO 2." }
+            ]
+          },
+          {
+            name: "Herramienta 4: Cronología Lógica",
+            question: "¿La cronología de eventos tiene sentido?",
+            options: [
+              { text: "A) \"Reunión → Filtrado inmediato → Investigación → Despido\"", correct: true, feedback: "✅ Correcto. Cronología lógica y apropiada. Continúa a Herramienta 5." },
+              { text: "B) \"Despido → Después aparece el video\"", correct: false, feedback: "❌ Incorrecto. Cronología ilógica. REINICIA EL CASO 2." },
+              { text: "C) \"Todo pasó simultáneamente\"", correct: false, feedback: "❌ Incorrecto. Físicamente improbable. REINICIA EL CASO 2." }
+            ]
+          },
+          {
+            name: "Herramienta 5: Acción vs. Ser",
+            question: "¿Estás juzgando una acción específica o a toda la persona?",
+            options: [
+              { text: "A) \"Hizo comentarios discriminatorios específicos\"", correct: true, feedback: "✅ Correcto. Enfoque en la acción específica. Continúa a Herramienta 6." },
+              { text: "B) \"Es un racista\"", correct: false, feedback: "❌ Incorrecto. Etiquetas a toda la persona. REINICIA EL CASO 2." },
+              { text: "C) \"Todos los ejecutivos son así\"", correct: false, feedback: "❌ Incorrecto. Generalizas a un grupo completo. REINICIA EL CASO 2." }
+            ]
+          },
+          {
+            name: "Herramienta 6: Proporcionalidad",
+            question: "¿La reacción es proporcional al daño causado?",
+            options: [
+              { text: "A) \"Despido y pérdida de reputación profesional\"", correct: true, feedback: "✅ Correcto. Proporcional a discriminación documentada. Continúa a Herramienta 7." },
+              { text: "B) \"Solo una advertencia\"", correct: false, feedback: "❌ Incorrecto. Insuficiente para discriminación. REINICIA EL CASO 2." },
+              { text: "C) \"Amenazas de muerte y acoso familiar\"", correct: false, feedback: "❌ Incorrecto. Desproporcionado. REINICIA EL CASO 2." }
+            ]
+          },
+          {
+            name: "Herramienta 7: Test de Improbabilidad",
+            question: "Para que esta cancelación esté justificada, ¿cuántas cosas improbables deben ser ciertas?",
+            options: [
+              { text: "A) \"1-2 cosas (historia simple)\"", correct: true, feedback: "✅ Correcto. Historia directa y simple. CASO 2 COMPLETADO → AVANZA A CASO 3." },
+              { text: "B) \"3+ cosas (múltiples coincidencias)\"", correct: false, feedback: "❌ Incorrecto. Es una historia directa. REINICIA EL CASO 2." },
+              { text: "C) \"Requiere conspiración compleja\"", correct: false, feedback: "❌ Incorrecto. No hay elementos conspirativos. REINICIA EL CASO 2." }
+            ]
+          }
+        ]
+      },
+      {
+        title: "CASO 3: \"La Estudiante\"",
+        description: "Una estudiante universitaria publicó en redes sociales que había sido agredida sexualmente por varios compañeros de fraternidad. La historia se viralizó, los acusados fueron expulsados y recibieron amenazas. Meses después, investigaciones revelaron inconsistencias en su testimonio y ella admitió haber fabricado la historia.",
+        resultLabel: "✅ CASO 3 (Estudiante): LINCHAMIENTO DIGITAL",
+        tools: [
+          {
+            name: "Herramienta 1: Especificidad",
+            question: "¿Puedes señalar EXACTAMENTE qué hizo esta persona?",
+            options: [
+              { text: "A) \"Publicó acusaciones de agresión sexual en redes sociales el [fecha]\"", correct: true, feedback: "✅ Correcto. Continúa a Herramienta 2." },
+              { text: "B) \"Mintió sobre todo\"", correct: false, feedback: "❌ Incorrecto. Demasiado general. REINICIA EL CASO 3." },
+              { text: "C) \"Es una mentirosa\"", correct: false, feedback: "❌ Incorrecto. Juzgas a la persona, no la acción. REINICIA EL CASO 3." }
+            ]
+          },
+          {
+            name: "Herramienta 2: Evidencia Verificable",
+            question: "¿Qué evidencia verificable tienes?",
+            options: [
+              { text: "A) \"Solo las publicaciones en redes sociales\"", correct: false, feedback: "❌ Incorrecto. Acusaciones no son evidencia del evento. REINICIA EL CASO 3." },
+              { text: "B) \"Investigación policial + testimonios contradictorios\"", correct: true, feedback: "✅ Correcto. Evidencia que muestra inconsistencias. Continúa a Herramienta 3." },
+              { text: "C) \"Apoyo de amigos en redes\"", correct: false, feedback: "❌ Incorrecto. Apoyo social no es evidencia del evento. REINICIA EL CASO 3." }
+            ]
+          },
+          {
+            name: "Herramienta 3: Fuentes Independientes",
+            question: "¿Las fuentes son independientes y confiables?",
+            options: [
+              { text: "A) \"Solo la acusadora\"", correct: false, feedback: "❌ Incorrecto. Una sola fuente, parte interesada. REINICIA EL CASO 3." },
+              { text: "B) \"Investigación independiente + testimonios de múltiples personas\"", correct: true, feedback: "✅ Correcto. Fuentes independientes. Continúa a Herramienta 4." },
+              { text: "C) \"Amigos de la acusadora\"", correct: false, feedback: "❌ Incorrecto. Fuentes no independientes. REINICIA EL CASO 3." }
+            ]
+          },
+          {
+            name: "Herramienta 4: Cronología Lógica",
+            question: "¿La cronología de eventos tiene sentido?",
+            options: [
+              { text: "A) \"Acusación → Viralización → Expulsiones → Investigación → Retractación\"", correct: true, feedback: "✅ Correcto. Muestra proceso inadecuado. Continúa a Herramienta 5." },
+              { text: "B) \"Investigación → Acusación → Expulsiones\"", correct: false, feedback: "❌ Incorrecto. No fue así como ocurrió. REINICIA EL CASO 3." },
+              { text: "C) \"Todo fue simultáneo\"", correct: false, feedback: "❌ Incorrecto. Improbable e ilógico. REINICIA EL CASO 3." }
+            ]
+          },
+          {
+            name: "Herramienta 5: Acción vs. Ser",
+            question: "¿Estás juzgando una acción específica o a toda la persona?",
+            options: [
+              { text: "A) \"Hizo acusaciones falsas específicas\"", correct: true, feedback: "✅ Correcto. Enfoque en la acción específica. Continúa a Herramienta 6." },
+              { text: "B) \"Es una mentirosa patológica\"", correct: false, feedback: "❌ Incorrecto. Juzgas a toda la persona. REINICIA EL CASO 3." },
+              { text: "C) \"Las mujeres siempre mienten sobre esto\"", correct: false, feedback: "❌ Incorrecto. Generalización tóxica. REINICIA EL CASO 3." }
+            ]
+          },
+          {
+            name: "Herramienta 6: Proporcionalidad",
+            question: "¿La reacción es proporcional al daño causado?",
+            options: [
+              { text: "A) \"Expulsión inmediata de los acusados\"", correct: false, feedback: "❌ Incorrecto. Desproporcionado sin investigación. REINICIA EL CASO 3." },
+              { text: "B) \"Investigación formal antes de cualquier acción\"", correct: true, feedback: "✅ Correcto. Proporcional y apropiado. Continúa a Herramienta 7." },
+              { text: "C) \"Ignorar las acusaciones\"", correct: false, feedback: "❌ Incorrecto. Insuficiente para acusaciones serias. REINICIA EL CASO 3." }
+            ]
+          },
+          {
+            name: "Herramienta 7: Test de Improbabilidad",
+            question: "Para que esta cancelación esté justificada, ¿cuántas cosas improbables deben ser ciertas?",
+            options: [
+              { text: "A) \"1-2 cosas (historia simple)\"", correct: false, feedback: "❌ Incorrecto. Requiere múltiples eventos improbables. REINICIA EL CASO 3." },
+              { text: "B) \"3+ cosas (múltiples coincidencias)\"", correct: true, feedback: "✅ Correcto. Requiere múltiples improbabilidades. CASO 3 COMPLETADO → RESULTADOS FINALES." },
+              { text: "C) \"No requiere eventos improbables\"", correct: false, feedback: "❌ Incorrecto. Sí requiere múltiples coincidencias. REINICIA EL CASO 3." }
+            ]
+          }
+        ]
+      }
+    ];
+
+    const RANKING = [
+      { name: "María G.", time: "14:23", attempts: 3 },
+      { name: "Carlos R.", time: "15:47", attempts: 4 },
+      { name: "Ana L.", time: "16:12", attempts: 5 }
+    ];
+
+    let state = {
+      status: "start", // start | case | results
+      currentCaseIndex: -1,
+      currentToolIndex: 0,
+      attempts: [0, 0, 0],
+      caseStatuses: ["pending", "pending", "pending"],
+      startedAt: null,
+      deadline: null,
+      completedAt: null,
+      timeExpired: false
+    };
+
+    let timerInterval = null;
+
+    function saveState() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    }
+
+    function loadState() {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (!saved) return false;
+      try {
+        const parsed = JSON.parse(saved);
+        state = { ...state, ...parsed };
+        if (
+          state.status === "case" &&
+          state.deadline &&
+          Date.now() < state.deadline &&
+          !state.timeExpired
+        ) {
+          startTimer();
+        }
+        return true;
+      } catch (err) {
+        console.error("No se pudo restaurar el estado", err);
+        localStorage.removeItem(STORAGE_KEY);
+        return false;
+      }
+    }
+
+    function formatTime(ms) {
+      const totalSeconds = Math.max(0, Math.floor(ms / 1000));
+      const minutes = String(Math.floor(totalSeconds / 60)).padStart(2, "0");
+      const seconds = String(totalSeconds % 60).padStart(2, "0");
+      return `${minutes}:${seconds}`;
+    }
+
+    function updateTimerDisplay() {
+      const timerEl = document.getElementById("timer");
+      if (!state.deadline) {
+        timerEl.textContent = "20:00";
+        timerEl.classList.remove("timer-warning", "timer-critical");
+        return;
+      }
+      const remaining = state.deadline - Date.now();
+      timerEl.textContent = formatTime(remaining);
+      timerEl.classList.toggle("timer-warning", remaining <= 5 * 60 * 1000 && remaining > 60 * 1000);
+      timerEl.classList.toggle("timer-critical", remaining <= 60 * 1000);
+      if (remaining <= 0) {
+        clearInterval(timerInterval);
+        timerInterval = null;
+        if (!state.timeExpired) {
+          state.timeExpired = true;
+          saveState();
+        }
+        showTimeUp();
+        timerEl.textContent = "00:00";
+      }
+    }
+
+    function startTimer() {
+      if (!state.deadline) {
+        const now = Date.now();
+        state.startedAt = now;
+        state.deadline = now + TOTAL_TIME;
+        saveState();
+      }
+      if (timerInterval) clearInterval(timerInterval);
+      updateTimerDisplay();
+      timerInterval = setInterval(updateTimerDisplay, 1000);
+    }
+
+    function resetState() {
+      state = {
+        status: "start",
+        currentCaseIndex: -1,
+        currentToolIndex: 0,
+        attempts: [0, 0, 0],
+        caseStatuses: ["pending", "pending", "pending"],
+        startedAt: null,
+        deadline: null,
+        completedAt: null,
+        timeExpired: false
+      };
+      clearInterval(timerInterval);
+      timerInterval = null;
+      localStorage.removeItem(STORAGE_KEY);
+      updateTimerDisplay();
+      render();
+      saveState();
+    }
+
+    function beginCases() {
+      if (!state.startedAt) {
+        startTimer();
+      }
+      state.status = "case";
+      state.currentCaseIndex = 0;
+      state.currentToolIndex = 0;
+      state.caseStatuses[0] = "progress";
+      state.attempts[0] = state.attempts[0] || 1;
+      state.timeExpired = false;
+      saveState();
+      render();
+    }
+
+    function showTimeUp() {
+      const overlay = document.getElementById("time-up");
+      overlay.classList.add("active");
+    }
+
+    function hideTimeUp() {
+      const overlay = document.getElementById("time-up");
+      overlay.classList.remove("active");
+    }
+
+    function handleOptionSelection(option) {
+      const caseIndex = state.currentCaseIndex;
+      const toolIndex = state.currentToolIndex;
+      const caseData = CASES[caseIndex];
+      const toolData = caseData.tools[toolIndex];
+      const feedbackEl = document.querySelector(".feedback");
+      const buttons = document.querySelectorAll(".option-btn");
+
+      buttons.forEach(btn => {
+        btn.disabled = true;
+        const isMatch = btn.dataset.optionIndex == option.index;
+        if (isMatch) {
+          btn.classList.add(option.correct ? "correct" : "incorrect");
+        }
+      });
+
+      if (feedbackEl) {
+        feedbackEl.textContent = option.feedback;
+        feedbackEl.className = `feedback ${option.correct ? "correct" : "incorrect"}`;
+      }
+
+      if (option.correct) {
+        setTimeout(() => {
+          advanceTool();
+        }, 900);
+      } else {
+        setTimeout(() => {
+          restartCase(caseIndex);
+        }, 1200);
+      }
+    }
+
+    function advanceTool() {
+      const caseIndex = state.currentCaseIndex;
+      const toolIndex = state.currentToolIndex;
+      const caseData = CASES[caseIndex];
+      if (toolIndex < caseData.tools.length - 1) {
+        state.currentToolIndex += 1;
+      } else {
+        completeCase();
+        return;
+      }
+      saveState();
+      render();
+    }
+
+    function restartCase(caseIndex) {
+      state.currentToolIndex = 0;
+      state.caseStatuses[caseIndex] = "progress";
+      state.attempts[caseIndex] = (state.attempts[caseIndex] || 1) + 1;
+      saveState();
+      render();
+    }
+
+    function completeCase() {
+      const caseIndex = state.currentCaseIndex;
+      state.caseStatuses[caseIndex] = "done";
+      if (caseIndex < CASES.length - 1) {
+        const nextCase = caseIndex + 1;
+        state.currentCaseIndex = nextCase;
+        state.currentToolIndex = 0;
+        state.caseStatuses[nextCase] = "progress";
+        state.attempts[nextCase] = state.attempts[nextCase] || 1;
+      } else {
+        state.status = "results";
+        state.currentCaseIndex = CASES.length - 1;
+        state.currentToolIndex = CASES[CASES.length - 1].tools.length;
+        state.completedAt = Date.now();
+        state.timeExpired = false;
+        clearInterval(timerInterval);
+        timerInterval = null;
+      }
+      saveState();
+      render();
+    }
+
+    function computeTotalTime() {
+      if (!state.startedAt) return "00:00";
+      const endTime = state.completedAt || Date.now();
+      const elapsed = Math.min(endTime - state.startedAt, TOTAL_TIME);
+      return formatTime(elapsed);
+    }
+
+    function computeTotalAttempts() {
+      return state.attempts.reduce((acc, val) => acc + (val || 0), 0);
+    }
+
+    function renderProgressSidebar() {
+      const caseStatusEl = document.getElementById("case-status");
+      caseStatusEl.innerHTML = "";
+      state.caseStatuses.forEach((status, idx) => {
+        const pill = document.createElement("span");
+        pill.classList.add("status-pill");
+        if (status === "done") {
+          pill.classList.add("pill-done");
+          pill.textContent = `CASO ${idx + 1}: ✅ COMPLETADO`;
+        } else if (status === "progress") {
+          pill.classList.add("pill-progress");
+          pill.textContent = `CASO ${idx + 1}: 🔄 EN PROCESO`;
+        } else {
+          pill.classList.add("pill-pending");
+          pill.textContent = `CASO ${idx + 1}: ⏳ PENDIENTE`;
+        }
+        caseStatusEl.appendChild(pill);
+      });
+
+      const currentCaseText = document.getElementById("current-case");
+      if (state.status === "start") {
+        currentCaseText.textContent = "CASO ACTUAL: ⏳";
+      } else if (state.status === "results") {
+        currentCaseText.textContent = "CASO ACTUAL: ✅ COMPLETADO";
+      } else {
+        currentCaseText.textContent = `CASO ACTUAL: ${state.currentCaseIndex + 1}`;
+      }
+
+      const currentToolText = document.getElementById("current-tool");
+      if (state.status === "case") {
+        currentToolText.textContent = `HERRAMIENTA ACTUAL: ${state.currentToolIndex + 1} de 7`;
+      } else if (state.status === "results") {
+        currentToolText.textContent = "HERRAMIENTA ACTUAL: 7 de 7";
+      } else {
+        currentToolText.textContent = "HERRAMIENTA ACTUAL: -";
+      }
+
+      const attemptsText = document.getElementById("attempts");
+      if (state.status === "case") {
+        attemptsText.textContent = `INTENTOS EN ESTE CASO: ${state.attempts[state.currentCaseIndex] || 1}`;
+      } else if (state.status === "results") {
+        attemptsText.textContent = "INTENTOS EN ESTE CASO: ✔️";
+      } else {
+        attemptsText.textContent = "INTENTOS EN ESTE CASO: -";
+      }
+    }
+
+    function renderStartView() {
+      return `
+        <h1>🎯 DETECTOR DE IRA JUSTIFICADA</h1>
+        <p>¡Analiza 3 casos reales de cancelación!</p>
+        <div class="instructions-list">
+          <p>Instrucciones:</p>
+          <ul>
+            <li>Analizarás 3 casos usando las 7 herramientas del framework POSVERDAD.</li>
+            <li>Debes completar las 7 herramientas CORRECTAMENTE para avanzar al siguiente caso.</li>
+            <li>Si fallas en cualquier herramienta, reiniciarás el caso desde el inicio.</li>
+            <li>Los primeros 3 en completar los 3 casos ganan camisetas.</li>
+          </ul>
+        </div>
+        <p><strong>Tiempo límite: 20 minutos</strong></p>
+        <button class="primary-btn" id="start-btn">COMENZAR CON CASO 1</button>
+      `;
+    }
+
+    function renderCaseView() {
+      const caseData = CASES[state.currentCaseIndex];
+      const toolData = caseData.tools[state.currentToolIndex];
+      const options = toolData.options
+        .map((option, idx) => `
+          <button class="option-btn" data-option-index="${idx}">${option.text}</button>
+        `)
+        .join("\n");
+      return `
+        <h1>${caseData.title}</h1>
+        <div class="case-description"><strong>Descripción:</strong> ${caseData.description}</div>
+        <h2>${toolData.name}</h2>
+        <p>${toolData.question}</p>
+        <div class="option-grid">
+          ${options}
+        </div>
+        <div class="feedback" aria-live="polite"></div>
+      `;
+    }
+
+    function renderResultsView() {
+      const totalTime = computeTotalTime();
+      const totalAttempts = computeTotalAttempts();
+      const ranking = [...RANKING, { name: "TÚ", time: totalTime, attempts: totalAttempts }];
+
+      const rankingHtml = ranking
+        .map((entry, idx) => `
+          <div class="ranking-item">
+            <span>${idx + 1}. ${entry.name}</span>
+            <span>${entry.time} - ${entry.attempts} intentos totales</span>
+          </div>
+        `)
+        .join("\n");
+
+      return `
+        <h1>🏆 ¡FELICIDADES! HAS COMPLETADO LOS 3 CASOS</h1>
+        <p><strong>TU TIEMPO TOTAL:</strong> ${totalTime} minutos</p>
+        <div class="results-grid">
+          <div>
+            <p><strong>INTENTOS TOTALES:</strong></p>
+            <ul>
+              <li>Caso 1: ${state.attempts[0]} intentos</li>
+              <li>Caso 2: ${state.attempts[1]} intentos</li>
+              <li>Caso 3: ${state.attempts[2]} intentos</li>
+            </ul>
+          </div>
+          <div>
+            <p><strong>ANÁLISIS FINAL:</strong></p>
+            <ul>
+              ${CASES.map(c => `<li>${c.resultLabel}</li>`).join("\n")}
+            </ul>
+          </div>
+        </div>
+        <p>🎯 Has demostrado que puedes diferenciar entre justicia y linchamiento digital.</p>
+        <div class="ranking">
+          <h3>RANKING ACTUAL:</h3>
+          ${rankingHtml}
+        </div>
+        <div class="option-grid">
+          <button class="primary-btn" id="share-btn">COMPARTIR RESULTADOS</button>
+          <button class="ghost-btn" id="reset-btn">VOLVER AL INICIO</button>
+        </div>
+      `;
+    }
+
+    function render() {
+      hideTimeUp();
+      const view = document.getElementById("view");
+      let html = "";
+      if (state.status === "start") {
+        html = renderStartView();
+      } else if (state.status === "case") {
+        html = renderCaseView();
+      } else {
+        html = renderResultsView();
+      }
+      view.innerHTML = html;
+      view.classList.remove("fade-in");
+      void view.offsetWidth;
+      view.classList.add("fade-in");
+      attachEventListeners();
+      renderProgressSidebar();
+      updateTimerDisplay();
+    }
+
+    function attachEventListeners() {
+      const startBtn = document.getElementById("start-btn");
+      if (startBtn) {
+        startBtn.addEventListener("click", beginCases);
+      }
+
+      const optionButtons = document.querySelectorAll(".option-btn");
+      if (optionButtons.length) {
+        optionButtons.forEach((btn, idx) => {
+          btn.addEventListener("click", () => {
+            const caseData = CASES[state.currentCaseIndex];
+            const toolData = caseData.tools[state.currentToolIndex];
+            const option = { ...toolData.options[idx], index: idx };
+            handleOptionSelection(option);
+          });
+        });
+      }
+
+      const resetBtn = document.getElementById("reset-btn");
+      if (resetBtn) {
+        resetBtn.addEventListener("click", resetState);
+      }
+
+      const shareBtn = document.getElementById("share-btn");
+      if (shareBtn) {
+        shareBtn.addEventListener("click", shareResults);
+      }
+
+      const restartBtn = document.getElementById("restart-btn");
+      if (restartBtn) {
+        restartBtn.addEventListener("click", () => {
+          hideTimeUp();
+          resetState();
+        });
+      }
+    }
+
+    function shareResults() {
+      const totalTime = computeTotalTime();
+      const totalAttempts = computeTotalAttempts();
+      const text = `Completé el Detector de Ira Justificada en ${totalTime} con ${totalAttempts} intentos. ¿Puedes superarme?`;
+      if (navigator.share) {
+        navigator.share({
+          title: "Detector de Ira Justificada",
+          text,
+          url: window.location.href
+        }).catch(() => {
+          fallbackCopy(text);
+        });
+      } else {
+        fallbackCopy(text);
+      }
+    }
+
+    function fallbackCopy(text) {
+      navigator.clipboard?.writeText(text).then(() => {
+        alert("Resultados copiados al portapapeles. ¡Compártelos!");
+      }).catch(() => {
+        alert(text);
+      });
+    }
+
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") {
+        updateTimerDisplay();
+      }
+    });
+
+    const hasSavedState = loadState();
+    if (!hasSavedState) {
+      saveState();
+    }
+    render();
+    if (state.timeExpired) {
+      showTimeUp();
+    }
+  </script>
+</body>
+</html>
